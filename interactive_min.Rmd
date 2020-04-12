@@ -1,0 +1,232 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+This file is to transform static mineralogy plots to interactive plotly plots
+
+
+### Load Data
+
+```{r}
+
+
+library(readxl)
+library(tidyverse)
+library(plotly)
+
+
+
+df <- read_xlsx("test_data2.xlsx",guess_max = 500000) %>%
+        mutate(SAMPLEID = as.character(SAMPLEID),
+               Fraction = as.character(Fraction))  # select a mineralogy input
+
+# check that data is in the correct format
+glimpse(df)
+
+```
+
+
+### Make normal plot
+
+### Solution
+
+Split the dataset by the classifiers, create a list of plots and feed it into the subplot function
+
+
+```{r}
+
+#read min colors
+
+  min_col <- read_csv ("colors.csv") %>%
+  mutate(hex = rgb(R,G,B,maxColorValue=255)) 
+  MinColors <- min_col$hex
+  names(MinColors) <- min_col$Mineral
+  
+
+
+#define function for percent labels without dividing the number by 100
+  
+  pct_label <- function (x) { scales::number_format(accuracy = 1,
+                                   scale = 1,
+                                   suffix = "%",
+                                   big.mark = ",")(x) }
+  
+  pct_label(12.4)
+  
+df2 <- df %>%
+  filter(SAMPLEID != "20273875" )
+#define plot xaxis limits. not needed, as all plots range form 0 -100
+
+# limits <- dt %>%
+#   summarise(max = ceiling(max(mpg*1.1)),
+#             min = floor(min(mpg*0.9)))
+
+
+#define width of subplots by finding the number of cars ineach "facet"
+plot_width<- df2 %>%
+  mutate_at(vars(Classifier), ~replace(., is.na(.), "NA"))%>%
+  group_by(Classifier) %>%
+  count() %>%
+  ungroup() %>%
+  mutate(width_pct = n/sum(n))
+
+
+f1 <- list(
+  family = "Arial, sans-serif",
+  size = 16,
+  color = "grey"
+)
+f2 <- list(
+  #family = "Old Standard TT, serif",
+  size = 12,
+  color = "black"
+)
+y <- list(
+  title = "Modal Mineralogy (wt. %)",
+  titlefont = f1,
+  showticklabels = TRUE,
+  tickangle = 0,
+  titlefont = f2
+)
+
+x <- list(
+ # title = "Modal Mineralogy (wt. %)",
+ #  titlefont = f1,
+  showticklabels = TRUE,
+  tickangle = -45,
+  titlefont = f2
+)
+
+
+
+
+#define a list of ggplot and feed it in the subplot function with the calculated limits
+df2 %>%
+    mutate_at(vars(Classifier), ~replace(., is.na(.), "NA"))%>%
+    split(.$Classifier) %>%
+  map(function(x) {
+    ggplot(data=x,aes(SAMPLEID,wt_pct,fill=Mineral)) + geom_col(width = 0.8)+
+    scale_y_continuous(breaks = seq(0,100,10))+
+      scale_fill_manual(values = MinColors) +
+      
+    theme_bw() + theme(legend.position = "none") +
+      
+    theme(axis.text.x = element_text(size =10 ,angle = 60, hjust = 1, vjust = 1),
+          axis.text.y  = element_text(size=10))+
+     
+      facet_grid(~Classifier) #+ ylim(c(limits$min,limits$max))
+  }) %>%
+  
+  subplot(margin = 0.007, shareY = T,widths = plot_width$width_pct) %>%
+  layout(yaxis = y,xaxis=x)
+
+```
+
+
+## nly using pltly
+
+```{r}
+
+
+
+f1 <- list(
+  family = "Arial, sans-serif",
+  size = 16,
+  color = "grey"
+)
+f2 <- list(
+  #family = "Old Standard TT, serif",
+  size = 12,
+  color = "black"
+)
+y <- list(
+  title = "Modal Mineralogy (wt. %)",
+  titlefont = f1,
+  showticklabels = TRUE,
+  tickangle = 0,
+  titlefont = f2
+)
+
+x <- list(
+ # title = "Modal Mineralogy (wt. %)",
+ #  titlefont = f1,
+  showticklabels = TRUE,
+  tickangle = -45,
+  titlefont = f2
+)
+
+
+
+
+
+
+
+df2 %>%
+  mutate(wt_pct = wt_pct) %>%
+  split(.$Classifier) %>%
+  map(function(x) {
+
+  plot_ly(data = x, 
+            x = ~SAMPLEID, 
+            y = ~wt_pct,
+            color = ~Mineral,
+            type = "bar",
+          colors = MinColors) %>%
+      add_annotations(
+    text = ~unique(Classifier),
+    x = 0.5,
+    y = 1,
+    yref = "paper",
+    xref = "paper",
+    yanchor = "bottom",
+    showarrow = FALSE,
+   # xshift = 25,
+
+    font = list(size = 12)) %>%
+      
+      layout(yaxis = list(title = 'Modal Mineralogt(wt.%)'),
+            
+      barmode = 'stack',
+      
+      shapes = list(
+      type = "rect",
+      x0 = 0,
+      x1 = 1,
+      xref = "paper",
+      y0 = 0, 
+      y1 = 16,
+      yanchor = 1,
+      yref = "paper",
+      ysizemode = "pixel",
+      fillcolor = toRGB("gray80"),
+      line = list(color = "transparent")
+    ))
+
+  }) %>%
+  
+  subplot(margin = 0.01, shareY = T,widths = plot_width$width_pct)%>%
+  layout(yaxis = y,xaxis=x)
+```
+
+
+
+
+
+```{r}
+library(plotly)
+m <- list(
+  l = 50,
+  r = 50,
+  b = 100,
+  t = 100,
+  pad = 4
+)
+fig <- plot_ly(x = seq(0, 8), y = seq(0, 8))
+fig <- fig %>% layout(autosize = F, width = 500, height = 500, margin = m)
+
+fig
+```
+
